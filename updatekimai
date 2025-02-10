@@ -1,0 +1,34 @@
+#!/bin/bash
+
+REQUIRED_USER="www-data"
+
+if [ "$(whoami)" != "$REQUIRED_USER" ]; then
+    echo "Dieses Skript muss als $REQUIRED_USER ausgeführt werden!"
+    exit 1
+fi
+
+# Installierte Version auslesen
+installed_version=$(bin/console kimai:version | grep -oP '\d+\.\d+\.\d+')
+
+# Neueste Version aus GitHub-Tags ermitteln
+latest_version=$(git ls-remote --tags --sort="-v:refname" https://github.com/kimai/kimai.git | grep -oP 'refs/tags/\K\d+\.\d+\.\d+' | head -n 1)
+
+# Prüfen, ob beide Variablen korrekt gefüllt sind
+if [[ -z "$installed_version" || -z "$latest_version" ]]; then
+    echo "Fehler: Versionserkennung fehlgeschlagen."
+    exit 1
+fi
+
+# Versionsvergleich
+if [ "$installed_version" == "$latest_version" ]; then
+    echo "Die installierte Version ($installed_version) ist aktuell."
+    exit 0
+else
+    echo "Update von Version $installed_version auf $latest_version erforderlich."
+    cd /var/www/html/kimai || { echo "Fehler: Konnte das Verzeichnis nicht wechseln."; exit 1; }
+    git checkout -- composer.lock || { echo "Fehler: Konnte composer.lock nicht zurücksetzen."; exit 1; }
+    git fetch --tags || { echo "Fehler: Konnte Tags nicht abrufen."; exit 1; }
+    git checkout "$latest_version" || { echo "Fehler: Konnte nicht auf $latest_version wechseln."; exit 1; }
+    composer install --no-dev --optimize-autoloader || { echo "Fehler: Composer-Install fehlgeschlagen."; exit 1; }
+    bin/console kimai:update || { echo "Fehler: Kimai-Update fehlgeschlagen."; exit 1; }
+fi
