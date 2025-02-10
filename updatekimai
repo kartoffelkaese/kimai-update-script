@@ -1,5 +1,4 @@
 #!/bin/bash
-
 REQUIRED_USER="www-data"
 
 if [ "$(whoami)" != "$REQUIRED_USER" ]; then
